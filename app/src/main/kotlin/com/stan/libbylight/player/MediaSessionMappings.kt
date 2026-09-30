@@ -1,8 +1,9 @@
 package com.stan.libbylight.player
 
+// Lock screen, notification, Bluetooth and LightOS transport controls skip by the same
+// audiobook-friendly interval in both directions.
 internal const val MEDIA_FAST_FORWARD_MILLISECONDS = 30_000L
-internal const val MEDIA_REWIND_MILLISECONDS = 15_000L
-internal const val MEDIA_PREVIOUS_RESTART_THRESHOLD_MILLISECONDS = 5_000L
+internal const val MEDIA_REWIND_MILLISECONDS = 30_000L
 
 internal fun clampMediaSeek(positionMilliseconds: Long, durationMilliseconds: Long): Long {
     val upperBound = durationMilliseconds.takeIf { it > 0 } ?: Long.MAX_VALUE
@@ -15,12 +16,12 @@ internal fun mediaFastForwardTarget(positionMilliseconds: Long, durationMillisec
 internal fun mediaRewindTarget(positionMilliseconds: Long, durationMilliseconds: Long): Long =
     clampMediaSeek(positionMilliseconds - MEDIA_REWIND_MILLISECONDS, durationMilliseconds)
 
+/**
+ * "Previous" on a lock screen or headset is a rewind for audiobooks. Restarting the whole book
+ * (the music-player convention) would lose the listener's place, so it never jumps to zero.
+ */
 internal fun mediaPreviousTarget(positionMilliseconds: Long, durationMilliseconds: Long): Long =
-    if (positionMilliseconds > MEDIA_PREVIOUS_RESTART_THRESHOLD_MILLISECONDS) {
-        0L
-    } else {
-        mediaRewindTarget(positionMilliseconds, durationMilliseconds)
-    }
+    mediaRewindTarget(positionMilliseconds, durationMilliseconds)
 
 internal data class SafeMediaMetadata(
     val title: String,

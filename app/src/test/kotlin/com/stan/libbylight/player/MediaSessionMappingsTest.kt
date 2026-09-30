@@ -14,6 +14,12 @@ class MediaSessionMappingsTest {
     @Test fun audiobookIntervalsAreStable() {
         assertEquals(40_000L, mediaFastForwardTarget(10_000L, 100_000L))
         assertEquals(0L, mediaRewindTarget(10_000L, 100_000L))
+        assertEquals(20_000L, mediaRewindTarget(50_000L, 100_000L))
+        assertEquals(100_000L, mediaFastForwardTarget(90_000L, 100_000L))
+    }
+
+    @Test fun previousRewindsInsteadOfRestartingTheBook() {
+        assertEquals(3_570_000L, mediaPreviousTarget(3_600_000L, 7_200_000L))
         assertEquals(0L, mediaPreviousTarget(10_000L, 100_000L))
     }
 

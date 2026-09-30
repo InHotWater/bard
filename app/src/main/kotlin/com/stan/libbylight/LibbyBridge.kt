@@ -424,6 +424,23 @@ object LibbyBridge {
                   result = seekTo(request.positionMilliseconds);
                   break;
 
+                case 'seekBy': {
+                  // Relative seek used by lock screen / media-button skips so the jump is
+                  // measured from Libby's live position rather than a stale native snapshot.
+                  const spool = getSpool();
+                  const delta = Number(request.deltaMilliseconds);
+                  if (!Number.isFinite(delta) || delta === 0) break;
+                  if (spool && typeof spool.seekBy === 'function') {
+                    spool.seekBy(delta);
+                    result = true;
+                  } else {
+                    const button = delta > 0 ? getForwardButton() : getBackButton();
+                    const presses = Math.max(1, Math.round(Math.abs(delta) / 15000));
+                    for (let i = 0; i < presses; i++) result = click(button) || result;
+                  }
+                  break;
+                }
+
                 case 'setSpeed':
                   result = setSpeed(request.speed);
                   break;
@@ -543,6 +560,12 @@ object LibbyBridge {
             "seekTo",
             JSONObject().put("positionMilliseconds", positionMilliseconds.coerceAtLeast(0)),
         )
+    }
+
+    /** Relative seek measured from Libby's live position (used by system media controls). */
+    fun seekBy(deltaMilliseconds: Long) {
+        if (deltaMilliseconds == 0L) return
+        command("seekBy", JSONObject().put("deltaMilliseconds", deltaMilliseconds))
     }
 
     fun setSpeed(speed: Double) {

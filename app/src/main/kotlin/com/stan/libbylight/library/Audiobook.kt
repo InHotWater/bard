@@ -27,6 +27,8 @@ data class Audiobook(
     val dueText: String = "",
     val fileSizeBytes: Long = 0,
     val parts: List<AudiobookPart> = emptyList(),
+    /** Remote cover image, used only for system media surfaces (lock screen/notification). */
+    val coverUrl: String = "",
 ) {
     val progressPercent: Int
         get() = progressPercentOverride ?: if (durationMilliseconds > 0) {

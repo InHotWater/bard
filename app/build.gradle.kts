@@ -16,6 +16,10 @@ val releaseTaskRequested = gradle.startParameter.taskNames.any {
     it.contains("release", ignoreCase = true)
 }
 
+// -PbardSideBySide=true builds "Bard Lock" (com.stan.libbylight.lock), which installs next to
+// an existing Bard without replacing it or its Libby session.
+val sideBySide = providers.gradleProperty("bardSideBySide").orNull == "true"
+
 if (releaseTaskRequested && !keystorePropertiesFile.isFile) {
     throw GradleException(
         "Release signing requires the ignored keystore.properties file. See RELEASE.md.",
@@ -30,8 +34,15 @@ android {
         applicationId = "com.stan.libbylight"
         minSdk = 33
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.1.0-alpha5"
+        versionCode = 6
+        versionName = "0.1.0-alpha5-lockscreen1"
+        if (sideBySide) {
+            applicationIdSuffix = ".lock"
+            versionNameSuffix = "-sidebyside"
+            resValue("string", "app_name", "Bard Lock")
+        } else {
+            resValue("string", "app_name", "Bard")
+        }
     }
 
     signingConfigs {
@@ -92,7 +103,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.webkit:webkit:1.9.0")
     implementation("androidx.media:media:1.7.0")
-    implementation("com.thelightphone.lp3keyboard:ui:0.0.11")
+    implementation("com.github.lightphone:light-keyboard:v0.0.13")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -43,6 +43,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.viewinterop.AndroidView
 import com.stan.libbylight.BuildConfig
 import com.stan.libbylight.LibbyBridge
@@ -163,6 +166,22 @@ fun PlayerDebugScreen() {
     var hydrationStartedAt by remember { mutableStateOf(0L) }
     var lastHydratedLoanIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var stableShelfSnapshots by remember { mutableStateOf(0) }
+    // Libby loan refresh: a manual request counter plus a tick for each return to Bard.
+    var libbyRefreshRequest by remember { mutableStateOf(0) }
+    var handledLibbyRefreshRequest by remember { mutableStateOf(0) }
+    var libbyRefreshMessage by remember { mutableStateOf("") }
+    var resumeTick by remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var sawFirstResume = false
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (sawFirstResume) resumeTick++ else sawFirstResume = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val localDeleteConsentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { result ->
@@ -615,7 +634,15 @@ fun PlayerDebugScreen() {
             showLibbySource -> {
                 LibbySourceScreen(
                     connected = sessionReady,
-                    onBack = { showLibbySource = false },
+                    refreshMessage = libbyRefreshMessage,
+                    onRefresh = {
+                        libbyRefreshMessage = "Refreshing loans…"
+                        libbyRefreshRequest++
+                    },
+                    onBack = {
+                        libbyRefreshMessage = ""
+                        showLibbySource = false
+                    },
                     onConnect = {
                         showLibbyConnect = true
                         LibbyConnectCoordinator.startConnection()
@@ -861,17 +888,28 @@ fun PlayerDebugScreen() {
         }
     }
 
-    LaunchedEffect(showBooks, sessionReady) {
+    LaunchedEffect(showBooks, sessionReady, resumeTick, libbyRefreshRequest) {
         if (!showBooks || !sessionReady) return@LaunchedEffect
+        val manualRefresh = libbyRefreshRequest != handledLibbyRefreshRequest
+        handledLibbyRefreshRequest = libbyRefreshRequest
 
         // The WebView route is authoritative. Never replace an active loan page merely
         // because the native shelf snapshot is temporarily empty during refresh/startup.
         val webViewUrl = LibbyWebPlayer.requireWebView().url.orEmpty()
         if (webViewUrl.contains("/open/loan/")) {
-            currentUrl = webViewUrl
-            booksLoading = false
-            booksMessage = ""
-            return@LaunchedEffect
+            val libbyPlaying = activeBook?.source == AudiobookSource.Libby && state.isPlaying
+            if (!manualRefresh || libbyPlaying) {
+                if (manualRefresh) libbyRefreshMessage = "Pause Libby playback, then refresh."
+                currentUrl = webViewUrl
+                booksLoading = false
+                booksMessage = ""
+                return@LaunchedEffect
+            }
+            // Explicit refresh while a Libby book is paused: keep its progress, then leave the
+            // player page. Opening the book again reconnects Libby's player.
+            activeBook?.takeIf {
+                it.source == AudiobookSource.Libby && state.durationSeconds > 0
+            }?.let { AudiobookProgressStore.recordSnapshot(it, state, force = true) }
         }
 
         booksLoading = true
@@ -881,18 +919,38 @@ fun PlayerDebugScreen() {
         stableShelfSnapshots = 0
         lastHydratedLoanIds = emptySet()
 
-        if (!currentUrl.contains("/shelf")) {
-            LibbyWebPlayer.loadLibraryPage()
+        // Re-boot Libby's web app (which re-syncs loans) when asked, or when Bard returns after
+        // the shelf has been open a while; otherwise only re-read the live shelf.
+        val onShelf = LibbyWebPlayer.requireWebView().url.orEmpty().contains("/shelf")
+        val reloaded = when {
+            manualRefresh || (onShelf && LibbyWebPlayer.shelfAgeMillis() > LIBBY_SHELF_AUTO_REFRESH_MILLISECONDS) -> {
+                LibbyWebPlayer.refreshLibraryPage()
+                true
+            }
+            !onShelf -> {
+                LibbyWebPlayer.loadLibraryPage()
+                true
+            }
+            else -> false
+        }
+        if (reloaded) {
+            // Let the reload replace the old DOM before sampling so a stale shelf is not
+            // mistaken for the refreshed one.
+            delay(1_200)
+            hydrationStartedAt = System.currentTimeMillis()
         }
 
-        repeat(16) {
+        repeat(if (reloaded) 30 else 16) {
             delay(400)
             currentUrl = LibbyWebPlayer.requireWebView().url.orEmpty()
             if (currentUrl.contains("/shelf")) {
                 LibbyWebPlayer.scrapeAudiobookLoans { found ->
                     publishLibbyShelfSnapshot(found)
                 }
-                if (libbyLibraryReadiness == LibbyLibraryReadiness.Ready) return@LaunchedEffect
+                if (libbyLibraryReadiness == LibbyLibraryReadiness.Ready) {
+                    if (manualRefresh) libbyRefreshMessage = "Loans refreshed."
+                    return@LaunchedEffect
+                }
             }
         }
 
@@ -900,6 +958,7 @@ fun PlayerDebugScreen() {
             libbyLibraryReadiness = LibbyLibraryReadiness.Failed
             booksLoading = false
             booksMessage = "Could not load Libby books."
+            if (manualRefresh) libbyRefreshMessage = "Could not refresh loans."
         }
     }
 
@@ -1712,6 +1771,8 @@ private fun SpeedPicker(
 @Composable
 private fun LibbySourceScreen(
     connected: Boolean,
+    refreshMessage: String,
+    onRefresh: () -> Unit,
     onBack: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
@@ -1735,6 +1796,8 @@ private fun LibbySourceScreen(
                 Spacer(Modifier.height(1f.gridUnitsAsDp()))
                 if (connected) {
                     SourceTextRow("Connected")
+                    SettingsRow(title = "Refresh Loans", onClick = onRefresh)
+                    if (refreshMessage.isNotBlank()) SourceTextRow(refreshMessage)
                     SettingsRow(title = "Disconnect", onClick = onDisconnect)
                 } else {
                     SettingsRow(title = "Connect to Libby", onClick = onConnect)
@@ -2193,6 +2256,7 @@ private fun LoanItem.toAudiobook(): Audiobook {
         lastUpdatedAtMilliseconds = saved.lastUpdatedAtMilliseconds,
         progressPercentOverride = progressPercent(progressText),
         dueText = normalizeDueText(dueText),
+        coverUrl = coverUrl,
     )
 }
 
@@ -2236,3 +2300,6 @@ private fun normalizeDueText(dueText: String): String {
 
 private fun trimSpeed(speed: Double): String =
     if (speed % 1.0 == 0.0) speed.toInt().toString() else speed.toString()
+
+/** Returning to Bard re-syncs the Libby shelf when it was last loaded longer ago than this. */
+private const val LIBBY_SHELF_AUTO_REFRESH_MILLISECONDS = 2 * 60 * 1000L

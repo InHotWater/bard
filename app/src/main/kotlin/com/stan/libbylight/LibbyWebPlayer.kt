@@ -127,7 +127,20 @@ object LibbyWebPlayer {
         }
     }
 
+    /** Uptime of the last full Libby page load (boot = Libby re-syncs loans with OverDrive). */
+    @Volatile
+    private var lastLibbyBootAtMillis = 0L
+
+    fun shelfAgeMillis(): Long =
+        if (lastLibbyBootAtMillis == 0L) Long.MAX_VALUE
+        else android.os.SystemClock.elapsedRealtime() - lastLibbyBootAtMillis
+
+    private fun markLibbyBoot() {
+        lastLibbyBootAtMillis = android.os.SystemClock.elapsedRealtime()
+    }
+
     fun loadLoginPage() {
+        markLibbyBoot()
         requireWebView().loadUrl(LIBBY_ROOT)
     }
 
@@ -169,7 +182,26 @@ object LibbyWebPlayer {
     }
 
     fun loadLibraryPage() {
+        markLibbyBoot()
         requireWebView().loadUrl(LIBBY_SHELF)
+    }
+
+    /**
+     * Re-boots Libby's web app on the shelf so it syncs loans with OverDrive again, without
+     * touching cookies or storage (no new setup code needed). Libby is a single-page app that
+     * Bard keeps alive for hours; merely re-reading the DOM of an already-open shelf never picks
+     * up loans borrowed elsewhere. Callers must not do this while a Libby book is playing: the
+     * same WebView hosts the Libby player.
+     */
+    fun refreshLibraryPage() {
+        val current = requireWebView()
+        markLibbyBoot()
+        val route = current.url.orEmpty().substringBefore('?').substringBefore('#')
+        if (route.startsWith(LIBBY_SHELF)) {
+            current.reload()
+        } else {
+            current.loadUrl(LIBBY_SHELF)
+        }
     }
 
     fun openLoan(loanUrl: String) {

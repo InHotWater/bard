@@ -71,6 +71,9 @@
   - Persisted position, duration, speed, and last-played ordering.
   - Now Playing restoration after app or phone restart without autoplay.
   - Bluetooth and LightOS play, pause, seek, and transport controls.
+  - Lock screen / notification now-playing controls: play/pause and back/forward 30 seconds, with title,
+    author, and cover art (lock screen only; Bard's own UI still shows no covers). Previous/next on a lock
+    screen or headset skip 30 seconds instead of restarting the book.
 
   The interface is source-independent, but playback is not one single engine: Libby uses its persistent hidden
   WebView player, while local and RSS books use Android's native media player.
@@ -107,6 +110,10 @@
   2. On another device already connected to Libby, open Menu → Copy To Another Device.
   3. Enter the eight-digit code displayed by Bard.
   4. Bard returns to Books after the Libby session and shelf are ready.
+
+  Newly borrowed Libby books appear without reconnecting: Bard re-syncs the Libby shelf when you return to it
+  after a couple of minutes, and Settings → Libby → Refresh Loans re-syncs on demand (pause a playing Libby
+  book first; the same hidden Libby page hosts its player).
 
   Bard's native connection flow does not expose passkey recovery or library-card sign-in. Disconnect clears only
   Bard's local Libby WebView session and does not disconnect other devices.
