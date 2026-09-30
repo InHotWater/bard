@@ -15,13 +15,13 @@ import androidx.compose.ui.unit.dp
 import com.thelightphone.lp3Keyboard.ui.DarkKeyboardColors
 import com.thelightphone.lp3Keyboard.ui.LightKeyboardColors
 import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardTheme
-import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardViewModel
+import com.thelightphone.lp3Keyboard.ui.viewmodel.Lp3KeyboardViewModel
 import com.thelightphone.lp3Keyboard.ui.LocalKeyboardColors
 import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardWrapper
 
 /** Exact Light SDK embedded LP3 keyboard wrapper, adapted only to Bard's package. */
 @Composable
-fun LightEmbeddedLp3Keyboard(viewModel: Lp3KeyboardViewModel) {
+fun LightEmbeddedLp3Keyboard(viewModel: Lp3KeyboardViewModel<*>) {
     val layout by viewModel.layoutFlow.collectAsState()
     val keyboardOptions by viewModel.keyboardOptionsFlow.collectAsState()
     val layoutOptions by viewModel.layoutOptionsFlow.collectAsState()
@@ -45,10 +45,11 @@ fun LightEmbeddedLp3Keyboard(viewModel: Lp3KeyboardViewModel) {
                     .padding(top = 10.dp),
             ) {
                 Lp3KeyboardWrapper(
-                    layout = layout,
-                    keyboardOptions = keyboardOptions,
-                    layoutOptions = layoutOptions,
-                    callback = viewModel,
+                    layout,
+                    keyboardOptions,
+                    layoutOptions,
+                    viewModel,
+                    viewModel,
                 )
             }
         }

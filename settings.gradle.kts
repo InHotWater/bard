@@ -6,27 +6,16 @@ pluginManagement {
     }
 }
 
-val localProperties = java.util.Properties().apply {
-    val file = File(rootDir, "local.properties")
-    if (file.exists()) file.inputStream().use(::load)
-}
-
-fun privateRepositoryValue(name: String): String =
-    localProperties.getProperty(name) ?: System.getenv(name).orEmpty()
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
+        // Light's LP3 keyboard, published publicly through JitPack (as the Light SDK does).
+        // The previous GitHub Packages coordinate needed a read:packages token to build.
         maven {
-            url = uri("https://maven.pkg.github.com/lightphone/light-keyboard")
-            credentials {
-                username = privateRepositoryValue("gpr.user")
-                    .ifBlank { privateRepositoryValue("GITHUB_ACTOR") }
-                password = privateRepositoryValue("gpr.key")
-                    .ifBlank { privateRepositoryValue("GITHUB_TOKEN") }
-            }
+            url = uri("https://jitpack.io")
+            content { includeGroup("com.github.lightphone") }
         }
     }
 }

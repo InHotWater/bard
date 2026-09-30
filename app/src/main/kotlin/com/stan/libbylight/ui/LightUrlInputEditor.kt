@@ -19,18 +19,15 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.thelightphone.lp3Keyboard.ui.CapsLockedLayout
-import com.thelightphone.lp3Keyboard.ui.DefaultLp3KeyboardViewModel
-import com.thelightphone.lp3Keyboard.ui.EmojiLayout
-import com.thelightphone.lp3Keyboard.ui.ExtendedCharKeyboard
 import com.thelightphone.lp3Keyboard.ui.KeyboardOptions
 import com.thelightphone.lp3Keyboard.ui.LayoutOptions
-import com.thelightphone.lp3Keyboard.ui.LowerCaseLayout
-import com.thelightphone.lp3Keyboard.ui.Lp3RepeatableKeyboardCallback
-import com.thelightphone.lp3Keyboard.ui.NumberLayout
+import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardSwipeCallback
 import com.thelightphone.lp3Keyboard.ui.SpecialKey
-import com.thelightphone.lp3Keyboard.ui.SymbolsLayout
-import com.thelightphone.lp3Keyboard.ui.UpperCaseLayout
+import com.thelightphone.lp3Keyboard.ui.layout.EmojiLayout
+import com.thelightphone.lp3Keyboard.ui.layout.ExtendedCharKeyboard
+import com.thelightphone.lp3Keyboard.ui.layout.LowerCaseLayout
+import com.thelightphone.lp3Keyboard.ui.viewmodel.EnQwertyLp3KeyboardViewModel
+import com.thelightphone.lp3Keyboard.ui.viewmodel.Lp3RepeatableKeyboardCallback
 import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
@@ -59,10 +56,11 @@ fun LightUrlInputEditor(
                 displayReturn = false,
                 displayVoice = false,
                 enableKeyAnimation = true,
+                swipeEnabled = false,
             ),
         )
     }
-    val keyboard: DefaultLp3KeyboardViewModel = viewModel(
+    val keyboard: EnQwertyLp3KeyboardViewModel<Unit> = viewModel(
         key = "BardAddFeedKeyboard",
         factory = keyboardFactory(callback, options),
     )
@@ -121,6 +119,8 @@ private class UrlKeyboardCallback(
     override fun onSpecialKeyRepeated(key: SpecialKey) {
         if (key == SpecialKey.Space) update(value() + " ")
     }
+    override fun onSubmitWord(word: CharSequence) = update(value() + word)
+    override fun onKeyCancelled(code: Int) = Unit
     override fun onSpecialKeyReleased(key: SpecialKey) {
         when (key) {
             SpecialKey.Backspace -> update(value().dropLast(1))
@@ -137,17 +137,24 @@ private fun keyboardFactory(
 ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        DefaultLp3KeyboardViewModel(
-            delegateCallback = callback,
-            keyboardOptionsFlow = options,
-            optionsForLayout = { layout ->
+        EnQwertyLp3KeyboardViewModel(
+            callback,
+            NoSwipe,
+            {},
+            LowerCaseLayout,
+            { layout ->
                 LayoutOptions(
-                    displayCloseButton = when (layout) {
-                        EmojiLayout, is ExtendedCharKeyboard -> true
-                        CapsLockedLayout, LowerCaseLayout, NumberLayout,
-                        SymbolsLayout, UpperCaseLayout -> false
-                    },
+                    displayCloseButton = layout == EmojiLayout || layout is ExtendedCharKeyboard,
                 )
             },
+            options,
         ) as T
+}
+
+/** Bard's URL entry does not use swipe typing. */
+private object NoSwipe : Lp3KeyboardSwipeCallback<Unit> {
+    override fun onSwipeLayoutReady(layoutId: String, keyX: FloatArray, keyY: FloatArray) = Unit
+    override fun onSwipeStarted() = Unit
+    override fun onSwipeCompleted(x: FloatArray, y: FloatArray, t: FloatArray): List<Unit> = emptyList()
+    override fun getWordForResult(result: Unit): CharSequence = ""
 }
