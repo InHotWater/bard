@@ -71,9 +71,22 @@
   - Persisted position, duration, speed, and last-played ordering.
   - Now Playing restoration after app or phone restart without autoplay.
   - Bluetooth and LightOS play, pause, seek, and transport controls.
-  - Lock screen / notification now-playing controls: play/pause and back/forward 30 seconds, with title,
+  - Lock screen / notification now-playing controls: play/pause and back/forward 15 seconds, with title,
     author, and cover art (lock screen only; Bard's own UI still shows no covers). Previous/next on a lock
-    screen or headset skip 30 seconds instead of restarting the book.
+    screen or headset skip 15 seconds instead of restarting the book.
+  - LightOS lock screen controls (Light Phone III). LightOS only draws its own Music/Podcasts player on its
+    lock screen and ignores other apps' media sessions and notifications, so Bard draws a small
+    title + back 15 / play-pause / forward 15 row over the LightOS lock screen itself. It needs two
+    one-time adb grants (LightOS has no Settings screen for them):
+
+    ```bash
+    adb shell appops set com.stan.libbylight SYSTEM_ALERT_WINDOW allow
+    adb shell appops set com.stan.libbylight GET_USAGE_STATS allow
+    ```
+
+    Usage access is how Bard checks that the LightOS lock screen is in front, so the row never covers
+    another app. Tap anywhere else (or long-press the row) to hide it until the screen next turns on.
+    Settings > Lock Screen shows the status and turns it off.
 
   The interface is source-independent, but playback is not one single engine: Libby uses its persistent hidden
   WebView player, while local and RSS books use Android's native media player.

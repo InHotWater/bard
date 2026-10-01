@@ -1,9 +1,10 @@
 package com.stan.libbylight.player
 
 // Lock screen, notification, Bluetooth and LightOS transport controls skip by the same
-// audiobook-friendly interval in both directions.
-internal const val MEDIA_FAST_FORWARD_MILLISECONDS = 30_000L
-internal const val MEDIA_REWIND_MILLISECONDS = 30_000L
+// audiobook-friendly interval in both directions. 15 seconds matches Bard's in-app
+// rewind/forward buttons and Libby's own skip buttons.
+internal const val MEDIA_FAST_FORWARD_MILLISECONDS = 15_000L
+internal const val MEDIA_REWIND_MILLISECONDS = 15_000L
 
 internal fun clampMediaSeek(positionMilliseconds: Long, durationMilliseconds: Long): Long {
     val upperBound = durationMilliseconds.takeIf { it > 0 } ?: Long.MAX_VALUE

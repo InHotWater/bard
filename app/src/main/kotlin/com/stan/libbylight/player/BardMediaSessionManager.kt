@@ -26,13 +26,14 @@ import kotlinx.coroutines.launch
  * The single Android media session for Bard. It publishes only safe display metadata and delegates
  * every command to the already-active playback backend.
  *
- * LightOS (Light Phone III) does not render app notifications; its lock screen / Toolbox
- * now-playing surface discovers the active platform MediaSession through
- * MediaSessionManager.getActiveSessions() (see light-sdk docs/design_decisions/detached_audio.md).
- * Stock Android lock screens render the MediaStyle notification bound to this session.
- * Either way, this session must stay current while Bard's Activity is stopped, so state is fed
- * from the playback backends directly rather than only from the Compose UI (whose recomposition
- * pauses when the Activity stops).
+ * This session drives headset/Bluetooth buttons and stock Android lock screens (through the
+ * MediaStyle notification bound to it). LightOS (Light Phone III, checked on build 582) renders
+ * neither: its lock-screen media row only shows its own Music/Podcasts player, and the launcher never
+ * reads other apps' sessions or notifications. On LightOS the lock-screen controls are therefore
+ * drawn by [LockScreenControlsOverlay], which is fed from [publish] and sends its taps back through
+ * this session's transport controls.
+ * State must stay current while Bard's Activity is stopped, so it is fed from the playback backends
+ * directly rather than only from the Compose UI (whose recomposition pauses when the Activity stops).
  */
 object BardMediaSessionManager {
     private const val TAG = "BardMediaSession"
@@ -124,6 +125,22 @@ object BardMediaSessionManager {
             isPlaying = state.isPlaying,
             artwork = artwork,
         )
+    }
+
+    // Lock-screen overlay buttons. They go through the session's own transport controls so they
+    // behave exactly like a headset or notification button (same dedupe, same foreground handling).
+    fun overlayPlayPause() {
+        if (!::session.isInitialized || activeBook == null) return
+        val controls = session.controller.transportControls
+        if (state.isPlaying) controls.pause() else controls.play()
+    }
+
+    fun overlayRewind() {
+        if (::session.isInitialized && activeBook != null) session.controller.transportControls.rewind()
+    }
+
+    fun overlayForward() {
+        if (::session.isInitialized && activeBook != null) session.controller.transportControls.fastForward()
     }
 
     fun handleMediaButtonIntent(intent: android.content.Intent?) {
@@ -231,6 +248,11 @@ object BardMediaSessionManager {
         }
         val shouldBeActive = book != null
         if (session.isActive != shouldBeActive) session.isActive = shouldBeActive
+        LockScreenControlsOverlay.onPlaybackChanged(
+            hasBook = book != null && state.readiness != PlayerReadiness.Unavailable,
+            isPlaying = state.isPlaying,
+            title = if (book != null) safe.title else "",
+        )
         if (updatePlaybackHost) {
             LibbyPlaybackForegroundService.update(appContext, state.isPlaying)
             val snapshotSignature = listOf(safe.title, safe.subtitle, state.isPlaying, artwork)
@@ -358,7 +380,7 @@ object BardMediaSessionManager {
         override fun onRewind() = dispatch("rewind") { skipBy(-MEDIA_REWIND_MILLISECONDS) }
 
         // Bard has no chapter queue yet. Lock screens, LightOS and headsets usually only offer
-        // previous/next, so they skip back/forward 30 seconds instead of changing books.
+        // previous/next, so they skip back/forward 15 seconds instead of changing books.
         override fun onSkipToNext() = dispatch("next") { skipBy(MEDIA_FAST_FORWARD_MILLISECONDS) }
 
         override fun onSkipToPrevious() = dispatch("previous") { skipBy(-MEDIA_REWIND_MILLISECONDS) }

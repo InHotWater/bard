@@ -34,8 +34,8 @@ android {
         applicationId = "com.stan.libbylight"
         minSdk = 33
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.1.0-alpha5-lockscreen1"
+        versionCode = 7
+        versionName = "0.1.0-alpha5-lockscreen2"
         if (sideBySide) {
             applicationIdSuffix = ".lock"
             versionNameSuffix = "-sidebyside"

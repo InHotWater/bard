@@ -70,6 +70,7 @@ import com.stan.libbylight.player.PlayerState
 import com.stan.libbylight.player.PlayerReadiness
 import com.stan.libbylight.player.LocalPlaybackController
 import com.stan.libbylight.player.BardMediaSessionManager
+import com.stan.libbylight.player.LockScreenControlsOverlay
 import com.stan.libbylight.ui.LightBarButton
 import com.stan.libbylight.ui.LightBottomBar
 import com.stan.libbylight.ui.LightIcon
@@ -135,6 +136,7 @@ fun PlayerDebugScreen() {
     var selectedRssFeedId by remember { mutableStateOf<String?>(null) }
     var rssFeedMessage by remember { mutableStateOf("") }
     var showVersion by remember { mutableStateOf(false) }
+    var showLockScreenSettings by remember { mutableStateOf(false) }
     var showDownloads by remember { mutableStateOf(false) }
     var downloadsEditMode by remember { mutableStateOf(false) }
     var pendingDownloadRemoval by remember { mutableStateOf<Audiobook?>(null) }
@@ -655,6 +657,10 @@ fun PlayerDebugScreen() {
                 VersionScreen(onBack = { showVersion = false })
             }
 
+            showLockScreenSettings -> {
+                LockScreenSettingsScreen(onBack = { showLockScreenSettings = false })
+            }
+
             showDownloads -> {
                 DownloadsScreen(
                     books = downloadedBooks,
@@ -676,6 +682,7 @@ fun PlayerDebugScreen() {
                     onOpenLocalBooks = { showLocalBooks = true },
                     onOpenRssFeeds = { showRssFeeds = true },
                     onOpenVersion = { showVersion = true },
+                    onOpenLockScreen = { showLockScreenSettings = true },
                 )
             }
 
@@ -2018,6 +2025,7 @@ private fun SettingsScreen(
     onOpenLocalBooks: () -> Unit,
     onOpenRssFeeds: () -> Unit,
     onOpenVersion: () -> Unit,
+    onOpenLockScreen: () -> Unit,
 ) {
     BardSurface {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -2043,7 +2051,78 @@ private fun SettingsScreen(
                 )
                 SettingsRow(title = "Local Books", onClick = onOpenLocalBooks)
                 SettingsRow(title = "RSS Feeds", onClick = onOpenRssFeeds)
+                SettingsRow(title = "Lock Screen", onClick = onOpenLockScreen)
                 SettingsRow(title = "Version", onClick = onOpenVersion)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LockScreenSettingsScreen(onBack: () -> Unit) {
+    // Appops are granted from outside the app (adb), so re-read them while this screen is open.
+    var refreshTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1_500)
+            refreshTick++
+        }
+    }
+    var enabled by remember { mutableStateOf(LockScreenControlsOverlay.enabled) }
+    val ready = remember(refreshTick) {
+        LockScreenControlsOverlay.canDrawOverlays() && LockScreenControlsOverlay.hasUsageAccess()
+    }
+    val status = remember(refreshTick, enabled) { LockScreenControlsOverlay.statusText() }
+    BardSurface {
+        Column(modifier = Modifier.fillMaxSize()) {
+            LightTopBar(
+                leftButton = LightBarButton.LightIcon(
+                    icon = LightIcons.BACK,
+                    onClick = onBack,
+                    contentDescription = "Back to Settings",
+                ),
+                center = LightTopBarCenter.Text("Lock Screen"),
+            )
+            LightScrollView(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 1.5f.gridUnitsAsDp()),
+            ) {
+                Spacer(Modifier.height(0.75f.gridUnitsAsDp()))
+                LightText(
+                    "LightOS only shows its own player on the lock screen, so Bard draws its own play/pause and 15-second skip buttons there.",
+                    variant = LightTextVariant.Paragraph,
+                )
+                Spacer(Modifier.height(0.75f.gridUnitsAsDp()))
+                LightText(status, variant = LightTextVariant.Detail, lighten = true)
+                Spacer(Modifier.height(0.5f.gridUnitsAsDp()))
+                if (ready) {
+                    SettingsRow(
+                        title = if (enabled) "Turn Off" else "Turn On",
+                        onClick = {
+                            enabled = !enabled
+                            LockScreenControlsOverlay.enabled = enabled
+                        },
+                    )
+                } else {
+                    LightText(
+                        "One-time setup from a computer (USB debugging on):",
+                        variant = LightTextVariant.Paragraph,
+                    )
+                    Spacer(Modifier.height(0.5f.gridUnitsAsDp()))
+                    for (command in LockScreenControlsOverlay.adbCommands()) {
+                        LightText(command, variant = LightTextVariant.Detail)
+                        Spacer(Modifier.height(0.5f.gridUnitsAsDp()))
+                    }
+                }
+                Spacer(Modifier.height(0.75f.gridUnitsAsDp()))
+                LightText(
+                    "Tap anywhere else on the lock screen, or long-press the buttons, to hide them until the screen next turns on.",
+                    variant = LightTextVariant.Detail,
+                    lighten = true,
+                )
+                Spacer(Modifier.height(1f.gridUnitsAsDp()))
             }
         }
     }

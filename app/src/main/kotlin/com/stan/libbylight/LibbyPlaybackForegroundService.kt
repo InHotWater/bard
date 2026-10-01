@@ -253,8 +253,8 @@ class LibbyPlaybackForegroundService : Service() {
                 .apply { snapshot.artwork?.let(::setLargeIcon) }
                 .addAction(
                     Notification.Action.Builder(
-                        android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_rewind_white),
-                        "Back 30 seconds",
+                        android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_skip_backward_fifteen_white),
+                        "Back 15 seconds",
                         back,
                     ).build(),
                 )
@@ -270,8 +270,8 @@ class LibbyPlaybackForegroundService : Service() {
                 )
                 .addAction(
                     Notification.Action.Builder(
-                        android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_fast_forward_white),
-                        "Forward 30 seconds",
+                        android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_skip_forward_fifteen_white),
+                        "Forward 15 seconds",
                         forward,
                     ).build(),
                 )

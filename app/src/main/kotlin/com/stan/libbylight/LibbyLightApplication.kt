@@ -7,6 +7,7 @@ import com.stan.libbylight.library.RssFeedRepository
 import com.stan.libbylight.library.RssDownloadManager
 import com.stan.libbylight.player.LocalPlaybackController
 import com.stan.libbylight.player.BardMediaSessionManager
+import com.stan.libbylight.player.LockScreenControlsOverlay
 
 class LibbyLightApplication : Application() {
     override fun onCreate() {
@@ -17,6 +18,7 @@ class LibbyLightApplication : Application() {
         RssDownloadManager.init(this)
         LocalBookRepository.init(this)
         LocalPlaybackController.init(this)
+        LockScreenControlsOverlay.init(this)
         BardMediaSessionManager.init(this)
     }
 }
